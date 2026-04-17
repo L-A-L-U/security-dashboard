@@ -1,0 +1,444 @@
+<!DOCTYPE html>
+<html lang="es" data-theme="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Security Dashboard — lalu.dev</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@300;400&family=Outfit:wght@200;300;400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+[data-theme="dark"]{--bg:#0a0a0a;--bg2:#111;--bg3:#161616;--border:#1e1e1e;--border2:#2a2a2a;--text:#e0e0e0;--text2:#888;--text3:#444}
+[data-theme="light"]{--bg:#f4f2ee;--bg2:#fff;--bg3:#eee9e3;--border:#e0ddd8;--border2:#ccc9c4;--text:#1a1a1a;--text2:#666;--text3:#aaa}
+:root{--green:#16a34a;--green2:#22c55e;--amber:#d97706;--amber2:#f59e0b;--red:#dc2626;--red2:#ef4444;--blue:#2563eb;--cyan2:#06b6d4;--mono:'DM Mono',monospace;--sans:'Outfit',sans-serif}
+html,body{height:100%;overflow:hidden}
+body{background:var(--bg);color:var(--text);font-family:var(--sans);font-weight:300;display:flex;flex-direction:column;transition:background .3s,color .3s}
+header{flex-shrink:0;height:52px;padding:0 20px;border-bottom:1px solid var(--border);background:var(--bg2);display:flex;align-items:center;justify-content:space-between;gap:12px;transition:background .3s,border-color .3s}
+.logo{font-family:var(--mono);font-size:12px;letter-spacing:.15em;color:var(--text);display:flex;align-items:center;gap:10px;flex-shrink:0}
+.logo-dot{width:6px;height:6px;border-radius:50%;background:var(--green2);box-shadow:0 0 8px var(--green2);animation:blink 2s infinite}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:.2}}
+.logo span{color:var(--text3)}
+.header-stats{display:flex;align-items:center;border:1px solid var(--border);overflow:hidden}
+.hs-item{padding:0 14px;height:36px;display:flex;flex-direction:column;justify-content:center;align-items:center;border-right:1px solid var(--border)}
+.hs-item:last-child{border-right:none}
+.hs-val{font-family:var(--mono);font-size:13px;color:var(--text);line-height:1}
+.hs-lbl{font-family:var(--mono);font-size:7px;letter-spacing:.2em;color:var(--text3);margin-top:2px;text-transform:uppercase}
+.header-right{display:flex;align-items:center;gap:10px;flex-shrink:0}
+.theme-lbl{font-family:var(--mono);font-size:9px;color:var(--text3);letter-spacing:.1em}
+.theme-sw{width:38px;height:20px;background:var(--border2);border-radius:10px;position:relative;cursor:pointer;border:1px solid var(--border2);transition:background .3s;flex-shrink:0}
+.theme-sw::after{content:'';position:absolute;top:2px;left:2px;width:14px;height:14px;border-radius:50%;background:var(--text);transition:transform .3s}
+[data-theme="light"] .theme-sw::after{transform:translateX(18px)}
+.workspace{flex:1;display:grid;grid-template-columns:1fr 1fr 300px;grid-template-rows:1fr 180px;gap:1px;background:var(--border);overflow:hidden;min-height:0}
+.panel{background:var(--bg2);display:flex;flex-direction:column;overflow:hidden;transition:background .3s}
+.panel-head{flex-shrink:0;padding:11px 16px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between}
+.ph-title{font-family:var(--mono);font-size:9px;letter-spacing:.2em;color:var(--text2);text-transform:uppercase}
+.ph-badge{font-family:var(--mono);font-size:9px;padding:2px 7px;border:1px solid var(--border2);color:var(--text2)}
+.ph-badge.live{border-color:var(--green2);color:var(--green2);animation:blink 2s infinite}
+.ph-badge.demo{border-color:var(--amber2);color:var(--amber2)}
+.panel-body{flex:1;padding:14px 16px;display:flex;flex-direction:column;overflow:hidden;min-height:0}
+#map-panel{grid-column:1;grid-row:1}
+#leaflet-map{width:100%;height:100%;min-height:200px}
+.leaflet-container{background:var(--bg)!important}
+.leaflet-tile-pane{filter:grayscale(1) brightness(.25);transition:filter .3s}
+[data-theme="light"] .leaflet-tile-pane{filter:grayscale(.4) brightness(.9)}
+.leaflet-control-attribution{display:none!important}
+.leaflet-control-zoom{display:none!important}
+#threats-panel{grid-column:2;grid-row:1}
+.t-summary{display:grid;grid-template-columns:1fr 1fr;gap:1px;background:var(--border);margin-bottom:12px;flex-shrink:0}
+.ts-cell{background:var(--bg3);padding:10px 12px;transition:background .3s}
+.ts-num{font-family:var(--mono);font-size:26px;line-height:1;margin-bottom:2px}
+.ts-lbl{font-size:9px;color:var(--text3);letter-spacing:.1em;text-transform:uppercase}
+.t-list{flex:1;overflow-y:auto;min-height:0;display:flex;flex-direction:column;gap:3px}
+.t-list::-webkit-scrollbar{width:2px}
+.t-list::-webkit-scrollbar-thumb{background:var(--border2)}
+.t-row{flex-shrink:0;padding:7px 10px;background:var(--bg3);border-left:2px solid var(--border2);display:grid;grid-template-columns:1fr auto;gap:8px;align-items:center;transition:background .3s}
+.t-row.new{border-left-color:var(--red2);animation:flash .5s ease}
+@keyframes flash{from{background:rgba(239,68,68,.08)}to{background:var(--bg3)}}
+.tr-type{font-family:var(--mono);font-size:9px;color:var(--red2)}
+.tr-ip{font-family:var(--mono);font-size:10px;color:var(--text2);margin-top:1px}
+.tr-time{font-family:var(--mono);font-size:9px;color:var(--text3)}
+.no-threat{font-family:var(--mono);font-size:10px;color:var(--green2);display:flex;align-items:center;gap:8px;padding:10px 0}
+.no-threat::before{content:'';width:5px;height:5px;border-radius:50%;background:var(--green2);box-shadow:0 0 6px var(--green2);flex-shrink:0}
+#demo-panel{grid-column:3;grid-row:1 / 3}
+.demo-intro{font-size:12px;color:var(--text2);line-height:1.7;margin-bottom:14px;flex-shrink:0}
+.demo-intro strong{color:var(--text);font-weight:500}
+.demo-form{flex-shrink:0;margin-bottom:12px;display:flex;flex-direction:column;gap:6px}
+.demo-input,.demo-select{width:100%;background:var(--bg3);border:1px solid var(--border2);color:var(--text);font-family:var(--mono);font-size:11px;padding:8px 10px;outline:none;transition:border-color .2s,background .3s;appearance:none}
+.demo-input:focus,.demo-select:focus{border-color:var(--text2)}
+.demo-input::placeholder{color:var(--text3)}
+.demo-btn{width:100%;font-family:var(--mono);font-size:10px;letter-spacing:.15em;text-transform:uppercase;padding:10px;background:var(--text);color:var(--bg);border:none;cursor:pointer;transition:opacity .2s}
+.demo-btn:hover{opacity:.8}
+.demo-btn:disabled{opacity:.4;cursor:not-allowed}
+.demo-progress{height:2px;background:var(--border2);margin-bottom:10px;flex-shrink:0;overflow:hidden;display:none}
+.demo-progress.active{display:block}
+.demo-progress-fill{height:100%;width:0;background:var(--amber2);transition:width .1s linear}
+.demo-log-title{font-family:var(--mono);font-size:9px;letter-spacing:.15em;color:var(--text3);text-transform:uppercase;margin-bottom:6px;flex-shrink:0}
+.demo-log{flex:1;overflow-y:auto;min-height:0;display:flex;flex-direction:column;gap:3px}
+.demo-log::-webkit-scrollbar{width:2px}
+.demo-log::-webkit-scrollbar-thumb{background:var(--border2)}
+.dl-entry{font-family:var(--mono);font-size:10px;padding:6px 9px;background:var(--bg3);border-left:2px solid var(--border2);color:var(--text2);line-height:1.5;transition:background .3s}
+.dl-entry.attack{border-left-color:var(--red2);color:var(--red2)}
+.dl-entry.ok{border-left-color:var(--green2);color:var(--green2)}
+.dl-entry.warn{border-left-color:var(--amber2);color:var(--amber2)}
+.dl-entry.info{border-left-color:var(--blue);color:var(--text2)}
+.dl-time{color:var(--text3);margin-right:6px}
+#metrics-row{grid-column:1 / 3;grid-row:2;padding:0}
+.metrics-inner{display:grid;grid-template-columns:repeat(4,1fr);gap:1px;background:var(--border);height:100%}
+.mc{background:var(--bg2);padding:12px 16px;display:flex;flex-direction:column;transition:background .3s}
+.mc-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;flex-shrink:0}
+.mc-lbl{font-family:var(--mono);font-size:9px;letter-spacing:.15em;color:var(--text3);text-transform:uppercase}
+.mc-val{font-family:var(--mono);font-size:14px;color:var(--text)}
+.mc-gauge{height:2px;background:var(--border2);position:relative;margin-bottom:8px;flex-shrink:0}
+.mc-fill{position:absolute;left:0;top:-1px;height:4px;width:0;transition:width 1s cubic-bezier(.16,1,.3,1)}
+.mc-fill::after{content:'';position:absolute;right:-3px;top:-2px;width:7px;height:7px;border-radius:50%;background:currentColor}
+.mc-chart{flex:1;min-height:0}
+.mc-chart canvas{width:100%;height:100%;display:block}
+@media(max-width:900px){
+  html,body{overflow:auto;height:auto}
+  .workspace{display:flex;flex-direction:column;height:auto;overflow:visible}
+  .panel,.mc{min-height:260px}
+  #map-panel{min-height:260px}
+  #demo-panel{min-height:360px}
+  #metrics-row{min-height:auto}
+  .metrics-inner{grid-template-columns:1fr 1fr;height:auto}
+  .mc{min-height:120px}
+  .header-stats{display:none}
+}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo"><div class="logo-dot"></div>LALU<span>.DEV</span>&nbsp;/&nbsp;SECURITY</div>
+  <div class="header-stats">
+    <div class="hs-item"><div class="hs-val" id="h-threats">0</div><div class="hs-lbl">Amenazas</div></div>
+    <div class="hs-item"><div class="hs-val" id="h-cpu">—</div><div class="hs-lbl">CPU</div></div>
+    <div class="hs-item"><div class="hs-val" id="h-ram">—</div><div class="hs-lbl">RAM</div></div>
+    <div class="hs-item"><div class="hs-val" id="h-time">--:--:--</div><div class="hs-lbl">Hora</div></div>
+  </div>
+  <div class="header-right">
+    <span class="theme-lbl" id="theme-lbl">OSCURO</span>
+    <div class="theme-sw" id="theme-sw"></div>
+  </div>
+</header>
+
+<div class="workspace">
+
+  <div class="panel" id="map-panel">
+    <div class="panel-head">
+      <span class="ph-title">Mapa de actividad</span>
+      <span class="ph-badge" id="map-badge">Servidor activo — CDMX</span>
+    </div>
+    <div class="panel-body" style="padding:0;overflow:hidden">
+      <div id="leaflet-map"></div>
+    </div>
+  </div>
+
+  <div class="panel" id="threats-panel">
+    <div class="panel-head">
+      <span class="ph-title">Intentos de intrusión SSH</span>
+      <span class="ph-badge live">LIVE</span>
+    </div>
+    <div class="panel-body">
+      <div class="t-summary">
+        <div class="ts-cell"><div class="ts-num" id="t-total" style="color:var(--red2)">0</div><div class="ts-lbl">Total intentos</div></div>
+        <div class="ts-cell"><div class="ts-num" id="t-ips" style="color:var(--amber2)">0</div><div class="ts-lbl">IPs únicas</div></div>
+      </div>
+      <div class="t-list" id="t-list"><div class="no-threat">Monitoreando — sin amenazas activas</div></div>
+    </div>
+  </div>
+
+  <div class="panel" id="demo-panel">
+    <div class="panel-head">
+      <span class="ph-title">Panel interactivo</span>
+      <span class="ph-badge demo">DEMO</span>
+    </div>
+    <div class="panel-body">
+      <p class="demo-intro">Simula un <strong>intento de intrusión SSH</strong> y observa cómo el sistema lo detecta y bloquea. Los puntos aparecen en el mapa en tiempo real.</p>
+      <div class="demo-form">
+        <input class="demo-input" id="demo-ip" type="text" placeholder="IP origen (ej: 185.220.101.45)" maxlength="40">
+        <input class="demo-input" id="demo-user" type="text" placeholder="Usuario (ej: root, admin, ubuntu)" maxlength="30">
+        <select class="demo-select" id="demo-type">
+          <option value="brute">Fuerza bruta — múltiples intentos</option>
+          <option value="single">Intento único fallido</option>
+          <option value="scan">Escaneo de puertos SSH</option>
+        </select>
+        <button class="demo-btn" id="demo-btn" onclick="runDemo()">→ Simular ataque</button>
+      </div>
+      <div class="demo-progress" id="demo-progress"><div class="demo-progress-fill" id="demo-pfill"></div></div>
+      <div class="demo-log-title">Log del sistema</div>
+      <div class="demo-log" id="demo-log">
+        <div class="dl-entry info"><span class="dl-time">—</span>Sistema listo. Ingresa datos para simular.</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="panel" id="metrics-row">
+    <div class="metrics-inner">
+      <div class="mc"><div class="mc-head"><span class="mc-lbl">CPU</span><span class="mc-val" id="mc-cpu">—</span></div><div class="mc-gauge"><div class="mc-fill" id="mc-cpu-bar"></div></div><div class="mc-chart"><canvas id="cpu-chart"></canvas></div></div>
+      <div class="mc"><div class="mc-head"><span class="mc-lbl">RAM</span><span class="mc-val" id="mc-ram">—</span></div><div class="mc-gauge"><div class="mc-fill" id="mc-ram-bar"></div></div><div class="mc-chart"><canvas id="ram-chart"></canvas></div></div>
+      <div class="mc"><div class="mc-head"><span class="mc-lbl">Disco</span><span class="mc-val" id="mc-disk">—</span></div><div class="mc-gauge"><div class="mc-fill" id="mc-disk-bar"></div></div><div class="mc-chart"><canvas id="disk-chart"></canvas></div></div>
+      <div class="mc"><div class="mc-head"><span class="mc-lbl">Red ↓</span><span class="mc-val" id="mc-net">—</span></div><div class="mc-gauge"><div class="mc-fill" id="mc-net-bar" style="color:var(--cyan2)"></div></div><div class="mc-chart"><canvas id="net-chart"></canvas></div></div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+// THEME
+document.getElementById('theme-sw').addEventListener('click', () => {
+  const html = document.documentElement;
+  const dark = html.dataset.theme === 'dark';
+  html.dataset.theme = dark ? 'light' : 'dark';
+  document.getElementById('theme-lbl').textContent = dark ? 'CLARO' : 'OSCURO';
+  updateMapTheme();
+});
+
+// SPARKLINE
+class Sparkline {
+  constructor(el, color) {
+    this.canvas = el; this.ctx = el.getContext('2d');
+    this.color = color; this.data = []; this.N = 60; this.max = 100;
+  }
+  push(v, max) {
+    if(max !== undefined) this.max = max;
+    this.data.push(v);
+    if(this.data.length > this.N) this.data.shift();
+    this.draw();
+  }
+  draw() {
+    const c = this.ctx;
+    const w = this.canvas.width  = this.canvas.offsetWidth;
+    const h = this.canvas.height = this.canvas.offsetHeight;
+    if(!w||!h) return;
+    c.clearRect(0,0,w,h);
+    if(this.data.length < 2) return;
+    const step = w / (this.N - 1);
+    const pts = this.data.map((v,i) => ({
+      x: i*step,
+      y: h - Math.max(0,Math.min(1,v/this.max))*h*0.88 - h*0.05
+    }));
+    const g = c.createLinearGradient(0,0,0,h);
+    g.addColorStop(0, this.color+'30'); g.addColorStop(1, this.color+'04');
+    c.beginPath(); c.moveTo(pts[0].x,h);
+    pts.forEach(p=>c.lineTo(p.x,p.y));
+    c.lineTo(pts[pts.length-1].x,h); c.closePath();
+    c.fillStyle=g; c.fill();
+    c.beginPath();
+    pts.forEach((p,i)=>i===0?c.moveTo(p.x,p.y):c.lineTo(p.x,p.y));
+    c.strokeStyle=this.color; c.lineWidth=1.5; c.stroke();
+    const last=pts[pts.length-1];
+    c.beginPath(); c.arc(last.x,last.y,2.5,0,Math.PI*2);
+    c.fillStyle=this.color; c.fill();
+  }
+}
+const charts = {
+  cpu:  new Sparkline(document.getElementById('cpu-chart'),  '#22c55e'),
+  ram:  new Sparkline(document.getElementById('ram-chart'),  '#3b82f6'),
+  disk: new Sparkline(document.getElementById('disk-chart'), '#f59e0b'),
+  net:  new Sparkline(document.getElementById('net-chart'),  '#06b6d4'),
+};
+function colorFor(p) {
+  if(p>85) return '#ef4444';
+  if(p>65) return '#f59e0b';
+  return '#22c55e';
+}
+
+// LEAFLET MAP
+let map, attackMarkers=[], demoMarkersList=[];
+
+function makeIcon(color, size=8) {
+  return L.divIcon({
+    html: `<div style="width:${size}px;height:${size}px;border-radius:50%;background:${color};box-shadow:0 0 0 3px ${color}33,0 0 10px ${color}"></div>`,
+    iconSize: [size,size], iconAnchor: [size/2,size/2], className:''
+  });
+}
+
+function initMap() {
+  map = L.map('leaflet-map', {
+    center:[20,10], zoom:2,
+    zoomControl:false, attributionControl:false,
+    scrollWheelZoom:true
+  });
+  L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',{maxZoom:8}).addTo(map);
+
+  // Servidor CDMX
+  L.marker([19.43,-99.13], {icon:makeIcon('#22c55e',10)})
+    .addTo(map)
+    .bindPopup('<b style="font-family:monospace;font-size:11px;color:#22c55e">lalu.dev</b><br><span style="font-size:10px">Servidor activo — CDMX</span>');
+
+  L.circle([19.43,-99.13],{radius:300000,color:'#22c55e',fillColor:'#22c55e',fillOpacity:.05,weight:1}).addTo(map);
+}
+
+function updateMapTheme() {
+  const tiles = document.querySelector('.leaflet-tile-pane');
+  if(!tiles) return;
+  const dark = document.documentElement.dataset.theme==='dark';
+  tiles.style.filter = dark ? 'grayscale(1) brightness(.25)' : 'grayscale(.4) brightness(.9)';
+}
+
+function addMapMarker(lat, lon, popup, color, isDemo=false) {
+  if(!map) return null;
+  const m = L.marker([lat,lon], {icon:makeIcon(color)}).addTo(map).bindPopup(popup);
+  const c = L.circle([lat,lon],{radius:400000,color,fillColor:color,fillOpacity:.07,weight:1,opacity:.4}).addTo(map);
+  if(isDemo) {
+    demoMarkersList.push(m,c);
+    setTimeout(()=>{ map.removeLayer(m); map.removeLayer(c); demoMarkersList=demoMarkersList.filter(x=>x!==m&&x!==c); },9000);
+  } else {
+    attackMarkers.push(m,c);
+  }
+  return m;
+}
+
+initMap();
+
+// IP rough geolocation
+function ipToLatLon(ip) {
+  const f = parseInt((ip||'').split('.')[0])||50;
+  if(f>=1&&f<=50)   return [35+(Math.random()-.5)*30, 105+(Math.random()-.5)*40];
+  if(f>=51&&f<=100) return [50+(Math.random()-.5)*20,  15+(Math.random()-.5)*30];
+  if(f>=101&&f<=150)return [-10+(Math.random()-.5)*30,-60+(Math.random()-.5)*30];
+  if(f>=151&&f<=200)return [38+(Math.random()-.5)*20, -95+(Math.random()-.5)*40];
+  return [20+(Math.random()-.5)*40, 20+(Math.random()-.5)*80];
+}
+
+// DEMO PANEL
+let demoCooldown=false;
+function ts() {
+  const n=new Date();
+  return [n.getHours(),n.getMinutes(),n.getSeconds()].map(x=>String(x).padStart(2,'0')).join(':');
+}
+function addLog(msg,type='info') {
+  const log=document.getElementById('demo-log');
+  const el=document.createElement('div');
+  el.className=`dl-entry ${type}`;
+  el.innerHTML=`<span class="dl-time">${ts()}</span>${msg}`;
+  log.insertBefore(el,log.firstChild);
+  while(log.children.length>25) log.removeChild(log.lastChild);
+}
+
+function animProgress(ms) {
+  const bar=document.getElementById('demo-progress');
+  const fill=document.getElementById('demo-pfill');
+  bar.classList.add('active');
+  fill.style.width='0%';
+  let start=null;
+  function step(t) {
+    if(!start) start=t;
+    const p=Math.min(100,(t-start)/ms*100);
+    fill.style.width=p+'%';
+    if(p<100) requestAnimationFrame(step);
+    else { setTimeout(()=>bar.classList.remove('active'),300); }
+  }
+  requestAnimationFrame(step);
+}
+
+function runDemo() {
+  if(demoCooldown) return;
+  const ipRaw = document.getElementById('demo-ip').value.trim();
+  const ip = ipRaw || `${Math.floor(Math.random()*200+20)}.${Math.floor(Math.random()*255)}.${Math.floor(Math.random()*255)}.${Math.floor(Math.random()*255)}`;
+  const user = document.getElementById('demo-user').value.trim() || ['root','admin','ubuntu','pi','test','guest'][Math.floor(Math.random()*6)];
+  const type = document.getElementById('demo-type').value;
+  const btn=document.getElementById('demo-btn');
+  btn.disabled=true; demoCooldown=true;
+  const port=Math.floor(Math.random()*60000+1024);
+  const attempts=type==='brute'?Math.floor(Math.random()*8+3):1;
+
+  animProgress(type==='brute'?3500:2200);
+
+  addLog(`Conexión entrante desde ${ip}:${port} → puerto 22`,'attack');
+
+  if(type==='scan') {
+    setTimeout(()=>addLog(`Escaneo detectado: puertos 22,80,443,3306,5432 probados`,'warn'),400);
+    setTimeout(()=>addLog(`Patrón de escaneo identificado — IP ${ip} sospechosa`,'warn'),900);
+    setTimeout(()=>addLog(`fail2ban: IP ${ip} añadida a lista negra`,'ok'),1500);
+  } else {
+    for(let i=0;i<attempts;i++) {
+      setTimeout(()=>addLog(`Autenticación fallida — usuario "${user}" desde ${ip}`,'attack'), 400+i*350);
+    }
+    setTimeout(()=>addLog(`${attempts} intento(s) fallidos registrados`,'warn'), 400+attempts*350);
+    setTimeout(()=>{
+      if(attempts>=3) addLog(`fail2ban: IP ${ip} bloqueada por ${attempts} intentos fallidos`,'ok');
+      else addLog(`fail2ban: intento registrado — ${ip} bajo observación`,'ok');
+    }, 600+attempts*400);
+  }
+
+  setTimeout(()=>{
+    const[lat,lon]=ipToLatLon(ip);
+    addMapMarker(lat,lon,`<span style="font-family:monospace;font-size:10px">${ip}<br>${user} — Demo</span>`,'#f59e0b',true);
+    if(map) map.flyTo([lat,lon],4,{duration:1.5,easeLinearity:.5});
+    addLog(`✓ Evento registrado — punto marcado en el mapa`,'ok');
+    btn.disabled=false; demoCooldown=false;
+  }, type==='brute'?3200:2000);
+}
+
+document.getElementById('demo-ip').addEventListener('keydown',e=>{if(e.key==='Enter')runDemo()});
+document.getElementById('demo-user').addEventListener('keydown',e=>{if(e.key==='Enter')runDemo()});
+
+// CLOCK
+setInterval(()=>{
+  const n=new Date();
+  document.getElementById('h-time').textContent=[n.getHours(),n.getMinutes(),n.getSeconds()].map(x=>String(x).padStart(2,'0')).join(':');
+},1000);
+
+// UPDATE
+let prevRecv=0, prevThreats=0;
+function update(metrics,ports,threats,geo) {
+  document.getElementById('h-cpu').textContent=metrics.cpu.toFixed(0)+'%';
+  document.getElementById('h-ram').textContent=metrics.ram.toFixed(0)+'%';
+  document.getElementById('h-threats').textContent=threats.total||0;
+
+  ['cpu','ram','disk'].forEach(k=>{
+    const v=metrics[k]||0;
+    document.getElementById(`mc-${k}`).textContent=v.toFixed(1)+'%';
+    const bar=document.getElementById(`mc-${k}-bar`);
+    bar.style.width=v+'%'; bar.style.color=colorFor(v);
+    charts[k].color=colorFor(v); charts[k].push(v);
+  });
+  const delta=prevRecv>0?Math.max(0,metrics.net.recv-prevRecv):0;
+  prevRecv=metrics.net.recv;
+  document.getElementById('mc-net').textContent=delta>0?(delta/1024).toFixed(0)+' KB/s':'0 KB/s';
+  document.getElementById('mc-net-bar').style.width=Math.min(100,delta/50000*100)+'%';
+  charts.net.push(delta,5e5);
+
+  const total=threats.total||0;
+  document.getElementById('t-total').textContent=total;
+  document.getElementById('t-ips').textContent=threats.unique_ips||0;
+  const isNew=total>prevThreats; prevThreats=total;
+  const list=document.getElementById('t-list');
+  if(threats.attempts&&threats.attempts.length>0){
+    list.innerHTML=[...threats.attempts].reverse().slice(0,10).map((a,i)=>`
+      <div class="t-row ${i===0&&isNew?'new':''}">
+        <div><div class="tr-type">${a.type||'—'}</div><div class="tr-ip">${a.ip||'—'}</div></div>
+        <div class="tr-time">${(a.time||'').substring(11,19)||'—'}</div>
+      </div>`).join('');
+  } else {
+    list.innerHTML='<div class="no-threat">Monitoreando — sin amenazas activas</div>';
+  }
+
+  if(geo?.locations?.length>0){
+    attackMarkers.forEach(m=>{try{map.removeLayer(m)}catch(e){}});
+    attackMarkers=[];
+    geo.locations.forEach(l=>addMapMarker(l.lat,l.lon,`<span style="font-family:monospace;font-size:10px">${l.ip}<br>${l.city||l.country}</span>`,'#ef4444',false));
+    document.getElementById('map-badge').textContent=geo.total_countries+' países detectados';
+  }
+}
+
+async function fetchAll(){
+  try{
+    const[metrics,ports,threats,geo]=await Promise.all([
+      fetch('/api/metrics').then(r=>r.json()),
+      fetch('/api/ports').then(r=>r.json()),
+      fetch('/api/threats').then(r=>r.json()),
+      fetch('/api/geo').then(r=>r.json()).catch(()=>({locations:[],total_countries:0})),
+    ]);
+    update(metrics,ports,threats,geo);
+  }catch(e){console.error(e)}
+}
+
+fetchAll();
+setInterval(fetchAll,2000);
+</script>
+</body>
+</html>
